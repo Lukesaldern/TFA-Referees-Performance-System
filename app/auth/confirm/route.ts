@@ -7,7 +7,9 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const token_hash = searchParams.get("token_hash");
   const type = searchParams.get("type");
-  const next = searchParams.get("next") ?? "/dashboard/referee";
+  // Validate next to prevent open-redirect attacks — only allow relative paths
+  const rawNext = searchParams.get("next") ?? "/dashboard/referee";
+  const next = rawNext.startsWith("/") ? rawNext : "/dashboard/referee";
 
   const cookieStore = await cookies();
   const supabase = createServerClient(
