@@ -12,11 +12,11 @@ interface InviteResult {
   email: string;
   status: "invited" | "already_exists" | "error";
   detail?: string;
+  invite_link?: string;
 }
 
 function parseCSV(text: string): ParsedReferee[] {
   const lines = text.trim().split(/\r?\n/);
-  // Skip header row if first cell looks like a label
   const start = /first|name/i.test(lines[0]) ? 1 : 0;
   return lines.slice(start).flatMap((line) => {
     const cols = line.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
@@ -24,6 +24,26 @@ function parseCSV(text: string): ParsedReferee[] {
     if (!first_name || !last_name || !email) return [];
     return [{ first_name, last_name, email }];
   });
+}
+
+function CopyLinkButton({ link }: { link: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <button
+      onClick={handleCopy}
+      className="ml-3 px-3 py-1 rounded-lg text-xs font-medium border transition-colors"
+      style={copied
+        ? { backgroundColor: "#007239", color: "#fff", borderColor: "#007239" }
+        : { backgroundColor: "#f8faf9", color: "#002e23", borderColor: "#e2e8e5" }}
+    >
+      {copied ? "✓ Copied!" : "Copy invite link"}
+    </button>
+  );
 }
 
 export default function InviteRefereesPage() {
@@ -37,7 +57,7 @@ export default function InviteRefereesPage() {
   // Admin invite form state
   const [adminForm, setAdminForm] = useState({ first_name: "", last_name: "", email: "" });
   const [adminSending, setAdminSending] = useState(false);
-  const [adminResult, setAdminResult] = useState<{ status: "invited" | "already_exists" | "error"; detail?: string } | null>(null);
+  const [adminResult, setAdminResult] = useState<InviteResult | null>(null);
 
   const handleAdminInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,7 +117,7 @@ export default function InviteRefereesPage() {
     setSending(false);
   };
 
-  const invited = results?.filter((r) => r.status === "invited").length ?? 0;
+  const invited = results?.filter((r) => r.status === "invited") ?? [];
   const existing = results?.filter((r) => r.status === "already_exists").length ?? 0;
   const errors = results?.filter((r) => r.status === "error") ?? [];
 
@@ -131,22 +151,27 @@ export default function InviteRefereesPage() {
             <input type="email" required value={adminForm.email} onChange={e => setAdminForm(f => ({ ...f, email: e.target.value }))}
               placeholder="sarah@example.com" className="w-full border border-[#e2e8e5] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#007239]" />
           </div>
-          <div className="sm:col-span-3 flex items-center gap-4">
+          <div className="sm:col-span-3 flex items-center gap-4 flex-wrap">
             <button type="submit" disabled={adminSending}
               className="px-5 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
               style={{ backgroundColor: "#002e23" }}>
-              {adminSending ? "Sending…" : "Send Admin Invite"}
+              {adminSending ? "Generating…" : "Generate Admin Invite Link"}
             </button>
-            {adminResult?.status === "invited" && <p className="text-sm text-[#007239] font-medium">✓ Invite sent!</p>}
+            {adminResult?.status === "invited" && adminResult.invite_link && (
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-[#007239] font-medium">✓ Link ready — send this to them:</p>
+                <CopyLinkButton link={adminResult.invite_link} />
+              </div>
+            )}
             {adminResult?.status === "already_exists" && <p className="text-sm text-[#6b7c75]">Already has an account.</p>}
-            {adminResult?.status === "error" && <p className="text-sm text-red-600">{adminResult.detail ?? "Failed to send invite."}</p>}
+            {adminResult?.status === "error" && <p className="text-sm text-red-600">{adminResult.detail ?? "Failed to generate invite."}</p>}
           </div>
         </form>
       </div>
 
       <h2 className="font-semibold text-[#002e23] mb-1">Invite Referees</h2>
       <p className="text-sm text-[#6b7c75] mb-6">
-        Upload a CSV with three columns — First Name, Last Name, Email — to create referee accounts and send login invite links.
+        Upload a CSV with three columns — First Name, Last Name, Email. An invite link will be generated for each referee — copy and send it to them directly.
       </p>
 
       {/* Drop zone */}
@@ -192,7 +217,7 @@ export default function InviteRefereesPage() {
               className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50 transition-opacity"
               style={{ backgroundColor: "#007239" }}
             >
-              {sending ? "Sending invites…" : `Send ${parsed.length} invite${parsed.length !== 1 ? "s" : ""}`}
+              {sending ? "Generating links…" : `Generate ${parsed.length} invite link${parsed.length !== 1 ? "s" : ""}`}
             </button>
           </div>
           <table className="w-full text-sm">
@@ -219,13 +244,31 @@ export default function InviteRefereesPage() {
       {/* Results */}
       {results && (
         <div className="space-y-4">
-          <div className="bg-green-50 border border-green-200 rounded-xl p-5">
-            <p className="font-semibold text-green-800 mb-1">Invites sent</p>
-            <p className="text-sm text-green-700">
-              {invited} new invite{invited !== 1 ? "s" : ""} sent
-              {existing > 0 ? ` · ${existing} already had an account` : ""}
-            </p>
-          </div>
+          {invited.length > 0 && (
+            <div className="bg-white rounded-xl border border-[#e2e8e5] overflow-hidden">
+              <div className="px-5 py-4 border-b border-[#e2e8e5]">
+                <p className="font-semibold text-[#002e23]">
+                  {invited.length} invite link{invited.length !== 1 ? "s" : ""} generated
+                  {existing > 0 ? ` · ${existing} already had an account` : ""}
+                </p>
+                <p className="text-xs text-[#6b7c75] mt-0.5">Copy each link and send it directly to the referee — by text, email, or WhatsApp.</p>
+              </div>
+              <ul className="divide-y divide-[#e2e8e5]">
+                {invited.map((r, i) => (
+                  <li key={i} className="px-5 py-3 flex items-center justify-between gap-4 flex-wrap">
+                    <span className="text-sm font-medium text-[#002e23]">{r.email}</span>
+                    {r.invite_link && <CopyLinkButton link={r.invite_link} />}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {existing > 0 && invited.length === 0 && (
+            <div className="bg-green-50 border border-green-200 rounded-xl p-5">
+              <p className="text-sm text-green-700">{existing} already had an account — no new links needed.</p>
+            </div>
+          )}
 
           {errors.length > 0 && (
             <div className="bg-red-50 border border-red-200 rounded-xl overflow-hidden">

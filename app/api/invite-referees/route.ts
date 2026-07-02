@@ -8,38 +8,15 @@ interface RefereeRow {
   email: string;
 }
 
-/** Serialize any error object including non-enumerable Error properties */
-function serializeError(err: unknown): string {
-  if (!err) return "Unknown error";
-  const props: Record<string, unknown> = {};
-  for (const key of Object.getOwnPropertyNames(err)) {
-    props[key] = (err as Record<string, unknown>)[key];
-  }
-  // Skip the stack trace — just show message, name, status, code
-  const { message, name, status, code, error_description, msg } = props as Record<string, string>;
-  const parts = [
-    message && `message: ${message}`,
-    name && name !== "AuthApiError" && `name: ${name}`,
-    status && `status: ${status}`,
-    code && `code: ${code}`,
-    error_description && `desc: ${error_description}`,
-    msg && `msg: ${msg}`,
-  ].filter(Boolean);
-  return parts.length > 0 ? parts.join(" | ") : JSON.stringify(props);
-}
-
-/** Build the site URL — prefer NEXT_PUBLIC_SITE_URL but fall back to Vercel's auto-set URL */
 function getSiteUrl(): string {
   const configured = process.env.NEXT_PUBLIC_SITE_URL;
   if (configured && !configured.includes("localhost")) return configured;
-  // VERCEL_URL is automatically set by Vercel on every deployment (server-side only)
   const vercelUrl = process.env.VERCEL_URL;
   if (vercelUrl) return `https://${vercelUrl}`;
   return configured ?? "";
 }
 
 export async function POST(req: Request) {
-  // Only authenticated admins can send invites
   const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
 
@@ -58,7 +35,12 @@ export async function POST(req: Request) {
   const siteUrl = getSiteUrl();
   const redirectTo = `${siteUrl}/auth/confirm?next=/auth/set-password`;
 
-  const results: Array<{ email: string; status: "invited" | "already_exists" | "error"; detail?: string }> = [];
+  const results: Array<{
+    email: string;
+    status: "invited" | "already_exists" | "error";
+    detail?: string;
+    invite_link?: string;
+  }> = [];
 
   for (const row of referees) {
     const email = row.email?.trim().toLowerCase();
@@ -84,26 +66,35 @@ export async function POST(req: Request) {
       continue;
     }
 
-    // Create auth user via invite (Supabase sends the invite email)
-    const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+    // Generate invite link directly — no SMTP required, admin sends the link manually
+    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+      type: "invite",
       email,
-      { redirectTo }
-    );
+      options: { redirectTo },
+    });
 
-    if (inviteError) {
-      results.push({ email, status: "error", detail: serializeError(inviteError) });
+    if (linkError || !linkData) {
+      const err = linkError as Record<string, unknown> | null;
+      const detail = err
+        ? (Object.getOwnPropertyDescriptor(err, "message")?.value as string) ||
+          `status=${err.status} code=${err.code}`
+        : "Failed to generate invite link";
+      results.push({ email, status: "error", detail });
       continue;
     }
 
     // Upsert referee record linked to new auth user
     await supabaseAdmin.from("referees").upsert(
-      { full_name, email, role, auth_user_id: inviteData.user.id },
+      { full_name, email, role, auth_user_id: linkData.user.id },
       { onConflict: "email" }
     );
 
-    results.push({ email, status: "invited" });
+    results.push({
+      email,
+      status: "invited",
+      invite_link: linkData.properties.action_link,
+    });
   }
 
-  // Include the redirectTo in response for debugging
-  return NextResponse.json({ results, debug_redirectTo: redirectTo });
+  return NextResponse.json({ results });
 }
