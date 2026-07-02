@@ -31,7 +31,8 @@ export async function POST(req: Request) {
   }
 
   const siteUrl = getSiteUrl(req);
-  const redirectTo = `${siteUrl}/auth/confirm?next=/auth/set-password`;
+  // redirectTo is only used by Supabase's own email (not us) — set it as a safe fallback
+  const redirectTo = `${siteUrl}/auth/set-password`;
 
   const results: Array<{
     email: string;
@@ -87,9 +88,11 @@ export async function POST(req: Request) {
       { onConflict: "email" }
     );
 
-    // Build our own link using hashed_token — bypasses Supabase's redirect
-    // and goes directly to our /auth/confirm handler which sets the session
-    const invite_link = `${siteUrl}/auth/confirm?token_hash=${linkData.properties.hashed_token}&type=invite&next=/auth/set-password`;
+    // Link goes straight to /auth/set-password with the token in the URL.
+    // The page verifies the token client-side via the Supabase browser client,
+    // which stores the session in cookies automatically — no server-side cookie
+    // juggling, no route handler redirect issues.
+    const invite_link = `${siteUrl}/auth/set-password?token_hash=${linkData.properties.hashed_token}&type=invite`;
 
     results.push({
       email,
