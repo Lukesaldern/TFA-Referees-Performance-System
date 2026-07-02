@@ -70,6 +70,12 @@ export default function NavLinks({ items }: { items: NavItemDef[] }) {
           <Link
             key={item.href}
             href={item.href}
+            onClick={() => {
+              // Close the mobile drawer by clearing the #mobile-nav hash
+              if (typeof window !== "undefined" && window.location.hash) {
+                history.replaceState(null, "", window.location.pathname + window.location.search);
+              }
+            }}
             className="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium"
             style={
               isActive
