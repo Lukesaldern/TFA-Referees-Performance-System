@@ -236,7 +236,7 @@ export default function InviteRefereesPage() {
                 {errors.map((r, i) => (
                   <li key={i} className="px-5 py-3 text-sm">
                     <span className="font-medium text-red-800">{r.email}</span>
-                    {r.detail && <span className="text-red-600 ml-2">— {r.detail}</span>}
+                    {r.detail && <span className="text-red-600 ml-2">— {typeof r.detail === "string" ? r.detail : JSON.stringify(r.detail)}</span>}
                   </li>
                 ))}
               </ul>

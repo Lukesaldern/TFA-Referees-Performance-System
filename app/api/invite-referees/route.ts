@@ -58,7 +58,11 @@ export async function POST(req: Request) {
     });
 
     if (inviteError) {
-      results.push({ email, status: "error", detail: inviteError.message });
+      const detail =
+        inviteError.message ||
+        (inviteError as { error_description?: string }).error_description ||
+        JSON.stringify(inviteError);
+      results.push({ email, status: "error", detail });
       continue;
     }
 
