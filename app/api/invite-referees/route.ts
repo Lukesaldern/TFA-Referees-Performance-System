@@ -49,7 +49,7 @@ export async function POST(req: Request) {
 
     // Create auth user via invite (Supabase sends the invite email)
     const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/set-password`,
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/confirm?next=/auth/set-password`,
     });
 
     if (inviteError) {
