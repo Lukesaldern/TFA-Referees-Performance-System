@@ -1,17 +1,16 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
-import type { SupabaseClient } from "@supabase/supabase-js";
-
-type AdminOk = { ok: true; supabase: SupabaseClient; userId: string };
-type AdminFail = { ok: false; response: NextResponse };
-export type AdminResult = AdminOk | AdminFail;
 
 /**
  * Returns { ok: true, supabase, userId } if the caller is a logged-in admin.
  * Returns { ok: false, response } with a 401/403 if not.
- * Usage: const auth = await requireAdmin(); if (!auth.ok) return auth.response;
+ *
+ * Usage:
+ *   const auth = await requireAdmin();
+ *   if (!auth.ok) return auth.response;
+ *   const { supabase, userId } = auth;
  */
-export async function requireAdmin(): Promise<AdminResult> {
+export async function requireAdmin() {
   const supabase = await createClient();
 
   const {
@@ -20,7 +19,7 @@ export async function requireAdmin(): Promise<AdminResult> {
 
   if (!user) {
     return {
-      ok: false,
+      ok: false as const,
       response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
     };
   }
@@ -33,10 +32,10 @@ export async function requireAdmin(): Promise<AdminResult> {
 
   if (referee?.role !== "admin") {
     return {
-      ok: false,
+      ok: false as const,
       response: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
     };
   }
 
-  return { ok: true, supabase, userId: user.id };
+  return { ok: true as const, supabase, userId: user.id };
 }
