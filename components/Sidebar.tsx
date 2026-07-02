@@ -26,7 +26,7 @@ export default function Sidebar({ role, refereeId, userEmail }: Props) {
     ? [
         { href: "/admin/roster", label: "Manage Roster", iconName: "roster" },
         { href: "/admin/upload", label: "Ingest XML", iconName: "upload" },
-        { href: "/admin/invite", label: "Invite Referees", iconName: "invite" },
+        { href: "/admin/invite", label: "Invite Users", iconName: "invite" },
       ]
     : [];
 
