@@ -38,9 +38,9 @@ export async function POST(req: Request) {
       continue;
     }
 
-    // Check if auth user already exists
-    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-    const existingUser = existingUsers?.users.find((u) => u.email === email);
+    // Check if auth user already exists — use getUserByEmail for exact lookup
+    const { data: existingUserData } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+    const existingUser = existingUserData?.users.find((u) => u.email?.toLowerCase() === email);
 
     if (existingUser) {
       // Ensure referee record is linked
@@ -61,7 +61,8 @@ export async function POST(req: Request) {
       const detail =
         inviteError.message ||
         (inviteError as { error_description?: string }).error_description ||
-        JSON.stringify(inviteError);
+        inviteError.name ||
+        "Unknown error — check SMTP settings in Supabase";
       results.push({ email, status: "error", detail });
       continue;
     }
