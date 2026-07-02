@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
+import { requireAdmin } from "@/utils/supabase/require-admin";
 import { parseSportsCodeXml, decodePossiblyUtf16 } from "@/lib/parse-xml";
 
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  const actorId = user?.id ?? null;
+  const auth = await requireAdmin();
+  if (auth.error) return auth.error;
+  const { supabase, user } = auth;
+  const actorId = user.id;
 
   const form = await request.formData();
   const file = form.get("file") as File | null;
