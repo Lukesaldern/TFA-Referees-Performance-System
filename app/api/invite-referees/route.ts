@@ -58,11 +58,14 @@ export async function POST(req: Request) {
     });
 
     if (inviteError) {
+      // Extract every possible field so we can see what Supabase is actually returning
+      const err = inviteError as Record<string, unknown>;
       const detail =
-        inviteError.message ||
-        (inviteError as { error_description?: string }).error_description ||
-        inviteError.name ||
-        "Unknown error — check SMTP settings in Supabase";
+        (typeof err.message === "string" && err.message) ||
+        (typeof err.error_description === "string" && err.error_description) ||
+        (typeof err.msg === "string" && err.msg) ||
+        (typeof err.name === "string" && err.name !== "AuthApiError" && err.name) ||
+        `status=${err.status ?? "?"} code=${err.code ?? "?"} — check SMTP config and Supabase redirect URL allowlist`;
       results.push({ email, status: "error", detail });
       continue;
     }
