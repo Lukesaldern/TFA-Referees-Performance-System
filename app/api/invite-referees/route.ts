@@ -89,10 +89,14 @@ export async function POST(req: Request) {
       { onConflict: "email" }
     );
 
+    // Build our own link using hashed_token — bypasses Supabase's redirect
+    // and goes directly to our /auth/confirm handler which sets the session
+    const invite_link = `${siteUrl}/auth/confirm?token_hash=${linkData.properties.hashed_token}&type=invite&next=/auth/set-password`;
+
     results.push({
       email,
       status: "invited",
-      invite_link: linkData.properties.action_link,
+      invite_link,
     });
   }
 
