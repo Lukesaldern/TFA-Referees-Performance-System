@@ -51,7 +51,6 @@ export async function proxy(request: NextRequest) {
     const restricted =
       pathname.startsWith("/admin") ||
       pathname.startsWith("/dashboard/squad") ||
-      pathname.startsWith("/dashboard/game") ||
       pathname === "/dashboard/referee" ||
       pathname === "/";
 
