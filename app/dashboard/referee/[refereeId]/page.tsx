@@ -17,7 +17,7 @@ export default async function RefereeDashboardPage({
   const { event: eventId, field: fieldFilter, severity: severityFilter, heatmap: heatmapMode, trendcall: trendCall } = await searchParams;
   const supabase = await createClient();
 
-  const { data: events } = await supabase.from("events").select("id, name").order("starts_on", { ascending: false });
+  const { data: events } = await supabase.from("events").select("id, name, starts_on").order("starts_on", { ascending: false });
   const { data: referee } = await supabase.from("referees").select("id, full_name, squad, accreditation, email").eq("id", refereeId).single();
   if (!referee) notFound();
 
@@ -48,40 +48,43 @@ export default async function RefereeDashboardPage({
   // ── Trend rows (no field/severity filter, optional call type filter) ───────
   let trendQuery = supabase
     .from("decision_accuracy")
-    .select("game_id, accuracy, call_text, game_date")
-    .eq("referee_id", refereeId)
-    .order("game_date");
+    .select("game_id, event_id, accuracy, call_text")
+    .eq("referee_id", refereeId);
   if (eventId) trendQuery = trendQuery.eq("event_id", eventId);
   if (trendCall) trendQuery = trendQuery.eq("call_text", trendCall);
   const { data: trendRows } = await trendQuery;
 
-  // Per-game trend: referee accuracy
-  const trendGameAcc: Record<string, { total: number; correct: number; date: string }> = {};
+  // Per-event trend: referee accuracy, ordered chronologically by event start date
+  const eventOrder = [...(events ?? [])].sort((a, b) => (a.starts_on ?? "").localeCompare(b.starts_on ?? ""));
+  const trendEventAcc: Record<string, { total: number; correct: number }> = {};
   for (const row of trendRows ?? []) {
-    if (!row.game_id) continue;
-    if (!trendGameAcc[row.game_id]) trendGameAcc[row.game_id] = { total: 0, correct: 0, date: row.game_date ?? "" };
-    trendGameAcc[row.game_id].total++;
-    if (row.accuracy === "Correct") trendGameAcc[row.game_id].correct++;
+    if (!row.event_id) continue;
+    if (!trendEventAcc[row.event_id]) trendEventAcc[row.event_id] = { total: 0, correct: 0 };
+    trendEventAcc[row.event_id].total++;
+    if (row.accuracy === "Correct") trendEventAcc[row.event_id].correct++;
   }
-  const trendData = Object.entries(trendGameAcc)
-    .map(([gid, s]) => ({ game_id: gid, date: s.date, pct: s.total > 0 ? Math.round((s.correct / s.total) * 100) : 0 }))
-    .sort((a, b) => a.date.localeCompare(b.date));
+  const trendData = eventOrder
+    .filter(e => trendEventAcc[e.id])
+    .map(e => {
+      const s = trendEventAcc[e.id];
+      return { event_id: e.id, label: e.name, pct: s.total > 0 ? Math.round((s.correct / s.total) * 100) : 0 };
+    });
 
-  // Squad average for the same games
-  const trendGameIds = trendData.map(g => g.game_id);
+  // Squad average for the same events (all referees)
+  const trendEventIds = trendData.map(e => e.event_id);
   let squadTrendMap: Record<string, number> = {};
-  if (trendGameIds.length > 0) {
-    let sqQuery = supabase.from("decision_accuracy").select("game_id, accuracy").in("game_id", trendGameIds);
+  if (trendEventIds.length > 0) {
+    let sqQuery = supabase.from("decision_accuracy").select("event_id, accuracy").in("event_id", trendEventIds);
     if (trendCall) sqQuery = sqQuery.eq("call_text", trendCall);
     const { data: sqRows } = await sqQuery;
     const sqAcc: Record<string, { t: number; c: number }> = {};
     for (const r of sqRows ?? []) {
-      if (!r.game_id) continue;
-      if (!sqAcc[r.game_id]) sqAcc[r.game_id] = { t: 0, c: 0 };
-      sqAcc[r.game_id].t++;
-      if (r.accuracy === "Correct") sqAcc[r.game_id].c++;
+      if (!r.event_id) continue;
+      if (!sqAcc[r.event_id]) sqAcc[r.event_id] = { t: 0, c: 0 };
+      sqAcc[r.event_id].t++;
+      if (r.accuracy === "Correct") sqAcc[r.event_id].c++;
     }
-    squadTrendMap = Object.fromEntries(Object.entries(sqAcc).map(([gid, s]) => [gid, s.t > 0 ? Math.round((s.c / s.t) * 100) : 0]));
+    squadTrendMap = Object.fromEntries(Object.entries(sqAcc).map(([eid, s]) => [eid, s.t > 0 ? Math.round((s.c / s.t) * 100) : 0]));
   }
 
   // All call types for trend filter pills
@@ -105,7 +108,7 @@ export default async function RefereeDashboardPage({
   const maxZoneCount = Math.max(1, ...Object.values(zoneCounts));
 
   // ── Games map ─────────────────────────────────────────────────────────────
-  const allGameIds = [...new Set([...(rows ?? []), ...(trendRows ?? [])].map(r => r.game_id).filter(Boolean))];
+  const allGameIds = [...new Set((rows ?? []).map(r => r.game_id).filter(Boolean))];
   const { data: games } = allGameIds.length > 0
     ? await supabase.from("games").select("id, name, game_date, hudl_link").in("id", allGameIds)
     : { data: [] };
@@ -201,7 +204,7 @@ export default async function RefereeDashboardPage({
           </div>
         </div>
         <div className="px-4 md:px-6 py-4">
-          <TrendChart data={trendData} squadAvg={squadTrendMap} gameMap={gameMap} />
+          <TrendChart data={trendData} squadAvg={squadTrendMap} />
         </div>
       </div>
 
@@ -347,14 +350,12 @@ export default async function RefereeDashboardPage({
 function TrendChart({
   data,
   squadAvg,
-  gameMap,
 }: {
-  data: Array<{ game_id: string; date: string; pct: number }>;
+  data: Array<{ event_id: string; label: string; pct: number }>;
   squadAvg: Record<string, number>;
-  gameMap: Record<string, { name: string; game_date: string | null }>;
 }) {
   if (data.length === 0) {
-    return <p className="text-sm text-[#6b7c75] py-6 text-center">No game data to display.</p>;
+    return <p className="text-sm text-[#6b7c75] py-6 text-center">No event data to display.</p>;
   }
 
   const W = 520, H = 160;
@@ -366,7 +367,7 @@ function TrendChart({
   const yPos = (pct: number) => padT + plotH - (Math.min(100, Math.max(0, pct)) / 100) * plotH;
 
   const refPath = data.map((d, i) => `${i === 0 ? "M" : "L"} ${xPos(i).toFixed(1)} ${yPos(d.pct).toFixed(1)}`).join(" ");
-  const sqPath = data.map((d, i) => `${i === 0 ? "M" : "L"} ${xPos(i).toFixed(1)} ${yPos(squadAvg[d.game_id] ?? 0).toFixed(1)}`).join(" ");
+  const sqPath = data.map((d, i) => `${i === 0 ? "M" : "L"} ${xPos(i).toFixed(1)} ${yPos(squadAvg[d.event_id] ?? 0).toFixed(1)}`).join(" ");
 
   return (
     <div>
@@ -382,18 +383,19 @@ function TrendChart({
         {/* Squad avg line (dashed grey) */}
         {data.length > 1 && <path d={sqPath} fill="none" stroke="#9ca3af" strokeWidth="1.5" strokeDasharray="5 3" />}
         {data.map((d, i) => (
-          <circle key={`sq-${d.game_id}`} cx={xPos(i)} cy={yPos(squadAvg[d.game_id] ?? 0)} r="3" fill="#9ca3af" />
+          <g key={`sq-${d.event_id}`}>
+            <circle cx={xPos(i)} cy={yPos(squadAvg[d.event_id] ?? 0)} r="3" fill="#9ca3af" />
+            <text x={xPos(i)} y={yPos(squadAvg[d.event_id] ?? 0) + 14} textAnchor="middle" fontSize="8" fill="#9ca3af">{squadAvg[d.event_id] ?? 0}%</text>
+          </g>
         ))}
 
         {/* Referee line (solid green) */}
         {data.length > 1 && <path d={refPath} fill="none" stroke="#007239" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
         {data.map((d, i) => (
-          <g key={`ref-${d.game_id}`}>
+          <g key={`ref-${d.event_id}`}>
             <circle cx={xPos(i)} cy={yPos(d.pct)} r="5" fill="#007239" />
             <text x={xPos(i)} y={yPos(d.pct) - 9} textAnchor="middle" fontSize="9" fontWeight="700" fill="#002e23">{d.pct}%</text>
-            <text x={xPos(i)} y={H - padB + 14} textAnchor="middle" fontSize="8" fill="#6b7c75">
-              {gameMap[d.game_id]?.name ?? (d.date ? new Date(d.date).toLocaleDateString("en-AU", { day: "numeric", month: "short" }) : `G${i + 1}`)}
-            </text>
+            <text x={xPos(i)} y={H - padB + 14} textAnchor="middle" fontSize="8" fill="#6b7c75">{d.label}</text>
           </g>
         ))}
 
