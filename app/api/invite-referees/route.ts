@@ -8,6 +8,36 @@ interface RefereeRow {
   email: string;
 }
 
+/** Serialize any error object including non-enumerable Error properties */
+function serializeError(err: unknown): string {
+  if (!err) return "Unknown error";
+  const props: Record<string, unknown> = {};
+  for (const key of Object.getOwnPropertyNames(err)) {
+    props[key] = (err as Record<string, unknown>)[key];
+  }
+  // Skip the stack trace — just show message, name, status, code
+  const { message, name, status, code, error_description, msg } = props as Record<string, string>;
+  const parts = [
+    message && `message: ${message}`,
+    name && name !== "AuthApiError" && `name: ${name}`,
+    status && `status: ${status}`,
+    code && `code: ${code}`,
+    error_description && `desc: ${error_description}`,
+    msg && `msg: ${msg}`,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(" | ") : JSON.stringify(props);
+}
+
+/** Build the site URL — prefer NEXT_PUBLIC_SITE_URL but fall back to Vercel's auto-set URL */
+function getSiteUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL;
+  if (configured && !configured.includes("localhost")) return configured;
+  // VERCEL_URL is automatically set by Vercel on every deployment (server-side only)
+  const vercelUrl = process.env.VERCEL_URL;
+  if (vercelUrl) return `https://${vercelUrl}`;
+  return configured ?? "";
+}
+
 export async function POST(req: Request) {
   // Only authenticated admins can send invites
   const auth = await requireAdmin();
@@ -25,6 +55,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No referees provided" }, { status: 400 });
   }
 
+  const siteUrl = getSiteUrl();
+  const redirectTo = `${siteUrl}/auth/confirm?next=/auth/set-password`;
+
   const results: Array<{ email: string; status: "invited" | "already_exists" | "error"; detail?: string }> = [];
 
   for (const row of referees) {
@@ -38,12 +71,11 @@ export async function POST(req: Request) {
       continue;
     }
 
-    // Check if auth user already exists — use getUserByEmail for exact lookup
+    // Check if auth user already exists
     const { data: existingUserData } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
     const existingUser = existingUserData?.users.find((u) => u.email?.toLowerCase() === email);
 
     if (existingUser) {
-      // Ensure referee record is linked
       await supabaseAdmin.from("referees").upsert(
         { full_name, email, role, auth_user_id: existingUser.id },
         { onConflict: "email" }
@@ -53,20 +85,13 @@ export async function POST(req: Request) {
     }
 
     // Create auth user via invite (Supabase sends the invite email)
-    const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/confirm?next=/auth/set-password`,
-    });
+    const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+      email,
+      { redirectTo }
+    );
 
     if (inviteError) {
-      // Extract every possible field so we can see what Supabase is actually returning
-      const err = inviteError as Record<string, unknown>;
-      const detail =
-        (typeof err.message === "string" && err.message) ||
-        (typeof err.error_description === "string" && err.error_description) ||
-        (typeof err.msg === "string" && err.msg) ||
-        (typeof err.name === "string" && err.name !== "AuthApiError" && err.name) ||
-        `status=${err.status ?? "?"} code=${err.code ?? "?"} — check SMTP config and Supabase redirect URL allowlist`;
-      results.push({ email, status: "error", detail });
+      results.push({ email, status: "error", detail: serializeError(inviteError) });
       continue;
     }
 
@@ -79,5 +104,6 @@ export async function POST(req: Request) {
     results.push({ email, status: "invited" });
   }
 
-  return NextResponse.json({ results });
+  // Include the redirectTo in response for debugging
+  return NextResponse.json({ results, debug_redirectTo: redirectTo });
 }
