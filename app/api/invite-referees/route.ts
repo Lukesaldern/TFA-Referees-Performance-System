@@ -8,12 +8,10 @@ interface RefereeRow {
   email: string;
 }
 
-function getSiteUrl(): string {
-  const configured = process.env.NEXT_PUBLIC_SITE_URL;
-  if (configured && !configured.includes("localhost")) return configured;
-  const vercelUrl = process.env.VERCEL_URL;
-  if (vercelUrl) return `https://${vercelUrl}`;
-  return configured ?? "";
+function getSiteUrl(req: Request): string {
+  // Derive from the actual request URL — always correct regardless of env vars
+  const reqUrl = new URL(req.url);
+  return `${reqUrl.protocol}//${reqUrl.host}`;
 }
 
 export async function POST(req: Request) {
@@ -32,7 +30,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No referees provided" }, { status: 400 });
   }
 
-  const siteUrl = getSiteUrl();
+  const siteUrl = getSiteUrl(req);
   const redirectTo = `${siteUrl}/auth/confirm?next=/auth/set-password`;
 
   const results: Array<{
