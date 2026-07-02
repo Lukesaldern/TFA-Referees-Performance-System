@@ -11,7 +11,7 @@ interface RefereeRow {
 export async function POST(req: Request) {
   // Only authenticated admins can send invites
   const auth = await requireAdmin();
-  if (auth.error) return auth.error;
+  if (!auth.ok) return auth.response;
 
   const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

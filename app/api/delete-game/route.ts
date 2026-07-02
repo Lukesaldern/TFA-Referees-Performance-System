@@ -3,8 +3,8 @@ import { requireAdmin } from "@/utils/supabase/require-admin";
 
 export async function DELETE(request: NextRequest) {
   const auth = await requireAdmin();
-  if (auth.error) return auth.error;
-  const { supabase } = auth;
+  if (!auth.ok) return auth.response;
+  const { supabase, userId } = auth;
 
   const { game_id } = await request.json();
 
@@ -15,7 +15,7 @@ export async function DELETE(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   await supabase.from("audit_log").insert({
-    actor_id: auth.user.id,
+    actor_id: userId,
     action: "game_deleted",
     detail: { game_id },
   });

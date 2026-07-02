@@ -4,9 +4,9 @@ import { parseSportsCodeXml, decodePossiblyUtf16 } from "@/lib/parse-xml";
 
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin();
-  if (auth.error) return auth.error;
-  const { supabase, user } = auth;
-  const actorId = user.id;
+  if (!auth.ok) return auth.response;
+  const { supabase, userId } = auth;
+  const actorId = userId;
 
   const form = await request.formData();
   const file = form.get("file") as File | null;

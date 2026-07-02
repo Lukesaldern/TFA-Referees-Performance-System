@@ -1,22 +1,30 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+type AdminOk = { ok: true; supabase: SupabaseClient; userId: string };
+type AdminFail = { ok: false; response: NextResponse };
+export type AdminResult = AdminOk | AdminFail;
 
 /**
- * Returns { supabase, user } if the caller is a logged-in admin.
- * Returns { error: NextResponse } if not — callers should return the error immediately.
+ * Returns { ok: true, supabase, userId } if the caller is a logged-in admin.
+ * Returns { ok: false, response } with a 401/403 if not.
+ * Usage: const auth = await requireAdmin(); if (!auth.ok) return auth.response;
  */
-export async function requireAdmin(): Promise<
-  | { supabase: Awaited<ReturnType<typeof createClient>>; user: { id: string }; error?: never }
-  | { error: NextResponse; supabase?: never; user?: never }
-> {
+export async function requireAdmin(): Promise<AdminResult> {
   const supabase = await createClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   if (!user) {
-    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    };
   }
 
-  // Check referee record for admin role
   const { data: referee } = await supabase
     .from("referees")
     .select("role")
@@ -24,8 +32,11 @@ export async function requireAdmin(): Promise<
     .single();
 
   if (referee?.role !== "admin") {
-    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+    };
   }
 
-  return { supabase, user: { id: user.id } };
+  return { ok: true, supabase, userId: user.id };
 }
