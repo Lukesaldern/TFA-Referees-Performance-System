@@ -19,7 +19,10 @@ export default function Sidebar({ role, refereeId, userEmail }: Props) {
         { href: "/dashboard/referee", label: "Referee Profiles", iconName: "referee" },
       ]
     : refereeId
-    ? [{ href: `/dashboard/referee/${refereeId}`, label: "Referee Profile", iconName: "referee" }]
+    ? [
+        { href: `/dashboard/referee/${refereeId}`, label: "Referee Profile", iconName: "referee" },
+        { href: "/dashboard/game", label: "Game Analysis", iconName: "game" },
+      ]
     : [];
 
   const adminItems: NavItemDef[] = isAdmin

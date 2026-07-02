@@ -11,6 +11,12 @@ export default async function GamesPage({
   const { event: eventId } = await searchParams;
   const supabase = await createClient();
 
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: currentReferee } = user
+    ? await supabase.from("referees").select("role").eq("auth_user_id", user.id).maybeSingle()
+    : { data: null };
+  const isAdmin = currentReferee?.role === "admin";
+
   const { data: events } = await supabase
     .from("events")
     .select("id, name, starts_on")
@@ -60,7 +66,7 @@ export default async function GamesPage({
               <tr className="border-b border-[#e2e8e5] text-xs uppercase tracking-wide text-[#6b7c75]">
                 <th className="text-left px-6 py-3">Game</th>
                 <th className="text-left px-6 py-3">Date</th>
-                <th className="text-left px-6 py-3">File</th>
+                {isAdmin && <th className="text-left px-6 py-3">File</th>}
                 <th className="px-6 py-3"></th>
               </tr>
             </thead>
@@ -71,7 +77,7 @@ export default async function GamesPage({
                   <td className="px-6 py-4 text-[#6b7c75]">
                     {g.game_date ? new Date(g.game_date).toLocaleDateString("en-AU") : "—"}
                   </td>
-                  <td className="px-6 py-4 text-[#6b7c75] text-xs font-mono">{g.source_file}</td>
+                  {isAdmin && <td className="px-6 py-4 text-[#6b7c75] text-xs font-mono">{g.source_file}</td>}
                   <td className="px-6 py-4 text-right">
                     <Link
                       href={`/dashboard/game/${g.id}`}
