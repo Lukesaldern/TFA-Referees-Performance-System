@@ -71,10 +71,10 @@ export default function NavLinks({ items }: { items: NavItemDef[] }) {
             key={item.href}
             href={item.href}
             onClick={() => {
-              // Close the mobile drawer by clearing the #mobile-nav hash
-              if (typeof window !== "undefined" && window.location.hash) {
-                history.replaceState(null, "", window.location.pathname + window.location.search);
-              }
+              // Programmatically click the overlay anchor (href="#") to clear the hash.
+              // history.replaceState doesn't trigger :target CSS updates — only a real
+              // hash navigation does, which is what clicking href="#" gives us.
+              (document.getElementById("mobile-overlay") as HTMLAnchorElement | null)?.click();
             }}
             className="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium"
             style={
