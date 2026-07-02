@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
-  const { referees }: { referees: RefereeRow[] } = await req.json();
+  const { referees, role = "referee" }: { referees: RefereeRow[]; role?: string } = await req.json();
 
   if (!Array.isArray(referees) || referees.length === 0) {
     return NextResponse.json({ error: "No referees provided" }, { status: 400 });
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
     if (existingUser) {
       // Ensure referee record is linked
       await supabaseAdmin.from("referees").upsert(
-        { full_name, email, role: "referee", auth_user_id: existingUser.id },
+        { full_name, email, role, auth_user_id: existingUser.id },
         { onConflict: "email" }
       );
       results.push({ email, status: "already_exists" });
@@ -59,7 +59,7 @@ export async function POST(req: Request) {
 
     // Upsert referee record linked to new auth user
     await supabaseAdmin.from("referees").upsert(
-      { full_name, email, role: "referee", auth_user_id: inviteData.user.id },
+      { full_name, email, role, auth_user_id: inviteData.user.id },
       { onConflict: "email" }
     );
 

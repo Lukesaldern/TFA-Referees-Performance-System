@@ -34,6 +34,27 @@ export default function InviteRefereesPage() {
   const [results, setResults] = useState<InviteResult[] | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Admin invite form state
+  const [adminForm, setAdminForm] = useState({ first_name: "", last_name: "", email: "" });
+  const [adminSending, setAdminSending] = useState(false);
+  const [adminResult, setAdminResult] = useState<{ status: "invited" | "already_exists" | "error"; detail?: string } | null>(null);
+
+  const handleAdminInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdminSending(true);
+    setAdminResult(null);
+    const res = await fetch("/api/invite-referees", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ referees: [adminForm], role: "admin" }),
+    });
+    const data = await res.json();
+    const r = data.results?.[0];
+    setAdminResult(r ?? { status: "error", detail: "Unknown error" });
+    if (r?.status === "invited") setAdminForm({ first_name: "", last_name: "", email: "" });
+    setAdminSending(false);
+  };
+
   const handleFile = (file: File) => {
     setParseError(null);
     setResults(null);
@@ -82,8 +103,49 @@ export default function InviteRefereesPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-8">
-      <h1 className="text-2xl font-bold text-[#002e23] mb-1">Invite Referees</h1>
+      <h1 className="text-2xl font-bold text-[#002e23] mb-1">Invite Users</h1>
       <p className="text-sm text-[#6b7c75] mb-8">
+        Invite squad coaches as admins, or bulk-invite referees via CSV.
+      </p>
+
+      {/* ── Invite Admin ── */}
+      <div className="bg-white rounded-xl border border-[#e2e8e5] p-6 mb-8">
+        <div className="flex items-center gap-3 mb-4">
+          <span className="text-xs font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full" style={{ backgroundColor: "#ffe600", color: "#002e23" }}>Admin</span>
+          <h2 className="font-semibold text-[#002e23]">Invite a Squad Coach</h2>
+        </div>
+        <p className="text-sm text-[#6b7c75] mb-4">Admins have full access — uploading games, managing the roster, and viewing all referee data.</p>
+        <form onSubmit={handleAdminInvite} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-[#002e23] mb-1">First Name</label>
+            <input type="text" required value={adminForm.first_name} onChange={e => setAdminForm(f => ({ ...f, first_name: e.target.value }))}
+              placeholder="Sarah" className="w-full border border-[#e2e8e5] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#007239]" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[#002e23] mb-1">Last Name</label>
+            <input type="text" required value={adminForm.last_name} onChange={e => setAdminForm(f => ({ ...f, last_name: e.target.value }))}
+              placeholder="Mitchell" className="w-full border border-[#e2e8e5] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#007239]" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[#002e23] mb-1">Email</label>
+            <input type="email" required value={adminForm.email} onChange={e => setAdminForm(f => ({ ...f, email: e.target.value }))}
+              placeholder="sarah@example.com" className="w-full border border-[#e2e8e5] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#007239]" />
+          </div>
+          <div className="sm:col-span-3 flex items-center gap-4">
+            <button type="submit" disabled={adminSending}
+              className="px-5 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
+              style={{ backgroundColor: "#002e23" }}>
+              {adminSending ? "Sending…" : "Send Admin Invite"}
+            </button>
+            {adminResult?.status === "invited" && <p className="text-sm text-[#007239] font-medium">✓ Invite sent!</p>}
+            {adminResult?.status === "already_exists" && <p className="text-sm text-[#6b7c75]">Already has an account.</p>}
+            {adminResult?.status === "error" && <p className="text-sm text-red-600">{adminResult.detail ?? "Failed to send invite."}</p>}
+          </div>
+        </form>
+      </div>
+
+      <h2 className="font-semibold text-[#002e23] mb-1">Invite Referees</h2>
+      <p className="text-sm text-[#6b7c75] mb-6">
         Upload a CSV with three columns — First Name, Last Name, Email — to create referee accounts and send login invite links.
       </p>
 
