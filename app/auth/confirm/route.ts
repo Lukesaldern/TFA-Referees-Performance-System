@@ -12,6 +12,12 @@ export async function GET(request: NextRequest) {
   const next = rawNext.startsWith("/") ? rawNext : "/dashboard/referee";
 
   const cookieStore = await cookies();
+
+  // Capture cookies that Supabase sets during auth so we can attach them to the
+  // redirect response. NextResponse.redirect() creates a brand-new response object,
+  // so cookies written only to cookieStore are lost; we must set them explicitly.
+  const pendingCookies: Array<{ name: string; value: string; options: Parameters<typeof cookieStore.set>[2] }> = [];
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
@@ -19,26 +25,33 @@ export async function GET(request: NextRequest) {
       cookies: {
         getAll() { return cookieStore.getAll(); },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options);
+            pendingCookies.push({ name, value, options });
+          });
         },
       },
     }
   );
 
+  const redirect = (path: string) => {
+    const response = NextResponse.redirect(new URL(path, request.url));
+    pendingCookies.forEach(({ name, value, options }) => {
+      response.cookies.set(name, value, options);
+    });
+    return response;
+  };
+
   // PKCE flow (magic link)
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      return NextResponse.redirect(new URL(next, request.url));
-    }
+    if (!error) return redirect(next);
   }
 
   // OTP flow (invite)
   if (token_hash && type) {
     const { error } = await supabase.auth.verifyOtp({ type: type as "invite" | "magiclink", token_hash });
-    if (!error) {
-      return NextResponse.redirect(new URL(next, request.url));
-    }
+    if (!error) return redirect(next);
   }
 
   return NextResponse.redirect(new URL("/login?error=invalid_link", request.url));
