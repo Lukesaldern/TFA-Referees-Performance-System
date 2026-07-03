@@ -101,10 +101,15 @@ export default async function RefereeDashboardPage({
   const { data: hmRows } = await hmQuery;
 
   const ZONES = ["Attacking 3rd", "Middle 3rd", "Defensive 3rd"] as const;
-  const hmFilter = heatmapMode === "incorrect"
-    ? (r: { accuracy: string; is_missed: boolean }) => r.accuracy === "Incorrect"
-    : (r: { accuracy: string; is_missed: boolean }) => r.is_missed;
+  const hmMode = heatmapMode === "incorrect" || heatmapMode === "all" ? heatmapMode : "missed";
+  const hmFilter =
+    hmMode === "all" ? () => true :
+    hmMode === "incorrect"
+      ? (r: { accuracy: string; is_missed: boolean }) => r.accuracy === "Incorrect"
+      : (r: { accuracy: string; is_missed: boolean }) => r.is_missed;
   const zoneCounts = Object.fromEntries(ZONES.map(z => [z, (hmRows ?? []).filter(r => r.field_position === z && hmFilter(r)).length]));
+  // Total calls per zone (all decisions) — denominator for the % readouts
+  const zoneTotals = Object.fromEntries(ZONES.map(z => [z, (hmRows ?? []).filter(r => r.field_position === z).length]));
   const maxZoneCount = Math.max(1, ...Object.values(zoneCounts));
 
   // ── Games map ─────────────────────────────────────────────────────────────
@@ -224,12 +229,13 @@ export default async function RefereeDashboardPage({
         <div className="px-4 md:px-6 py-4 border-b border-[#e2e8e5] flex items-center justify-between gap-3 flex-wrap">
           <h2 className="font-semibold text-[#002e23]">Decision Map by Field Zone</h2>
           <div className="flex gap-2">
-            <Link href={filterUrl({ heatmap: "missed" })} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${heatmapMode !== "incorrect" ? "text-white border-transparent" : "text-[#6b7c75] border-[#e2e8e5] hover:border-[#f97316]"}`} style={heatmapMode !== "incorrect" ? { backgroundColor: "#f97316" } : {}}>Missed DMs</Link>
-            <Link href={filterUrl({ heatmap: "incorrect" })} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${heatmapMode === "incorrect" ? "text-white border-transparent" : "text-[#6b7c75] border-[#e2e8e5] hover:border-[#ef3b24]"}`} style={heatmapMode === "incorrect" ? { backgroundColor: "#ef3b24" } : {}}>Incorrect Calls</Link>
+            <Link href={filterUrl({ heatmap: "missed" })} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${hmMode === "missed" ? "text-white border-transparent" : "text-[#6b7c75] border-[#e2e8e5] hover:border-[#f97316]"}`} style={hmMode === "missed" ? { backgroundColor: "#f97316" } : {}}>Missed DMs</Link>
+            <Link href={filterUrl({ heatmap: "incorrect" })} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${hmMode === "incorrect" ? "text-white border-transparent" : "text-[#6b7c75] border-[#e2e8e5] hover:border-[#ef3b24]"}`} style={hmMode === "incorrect" ? { backgroundColor: "#ef3b24" } : {}}>Incorrect Calls</Link>
+            <Link href={filterUrl({ heatmap: "all" })} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${hmMode === "all" ? "text-white border-transparent" : "text-[#6b7c75] border-[#e2e8e5] hover:border-[#2563eb]"}`} style={hmMode === "all" ? { backgroundColor: "#2563eb" } : {}}>All Calls</Link>
           </div>
         </div>
         <div className="px-4 md:px-6 py-5">
-          <FieldHeatmap zoneCounts={zoneCounts} maxCount={maxZoneCount} mode={heatmapMode ?? "missed"} />
+          <FieldHeatmap zoneCounts={zoneCounts} zoneTotals={zoneTotals} maxCount={maxZoneCount} mode={hmMode} />
         </div>
       </div>
 
@@ -426,7 +432,7 @@ function TrendChart({
 }
 
 // ── Field Heat Map ───────────────────────────────────────────────────────────
-function FieldHeatmap({ zoneCounts, maxCount, mode }: { zoneCounts: Record<string, number>; maxCount: number; mode: string }) {
+function FieldHeatmap({ zoneCounts, zoneTotals, maxCount, mode }: { zoneCounts: Record<string, number>; zoneTotals: Record<string, number>; maxCount: number; mode: string }) {
   // Landscape touch football field — 70m long, 50m wide
   // Zones: Attacking 3rd (0–25m), Middle 3rd (25–45m), Defensive 3rd (45–70m)
   const W = 640, H = 280;
@@ -447,12 +453,25 @@ function FieldHeatmap({ zoneCounts, maxCount, mode }: { zoneCounts: Record<strin
     const count = zoneCounts[zone] ?? 0;
     if (count === 0) return "rgba(0,0,0,0)";
     const opacity = 0.18 + (count / maxCount) * 0.62;
+    if (mode === "all") return `rgba(37,99,235,${opacity.toFixed(2)})`;
     return mode === "incorrect"
       ? `rgba(239,59,36,${opacity.toFixed(2)})`
       : `rgba(249,115,22,${opacity.toFixed(2)})`;
   };
 
   const labelColor = (zone: string) => (zoneCounts[zone] ?? 0) > 0 ? "white" : "rgba(255,255,255,0.5)";
+
+  const grandTotal = Object.values(zoneTotals).reduce((a, b) => a + b, 0);
+  const zoneSub = (zone: string) => {
+    const count = zoneCounts[zone] ?? 0;
+    if (mode === "all") {
+      const pct = grandTotal > 0 ? Math.round((count / grandTotal) * 100) : 0;
+      return `calls · ${pct}% of total`;
+    }
+    const zoneTotal = zoneTotals[zone] ?? 0;
+    const pct = zoneTotal > 0 ? Math.round((count / zoneTotal) * 100) : 0;
+    return `${mode === "incorrect" ? "incorrect" : "missed"} · ${pct}% of calls here`;
+  };
 
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ maxWidth: "100%" }}>
@@ -503,7 +522,7 @@ function FieldHeatmap({ zoneCounts, maxCount, mode }: { zoneCounts: Record<strin
             <text x={cx} y={fy + fh / 2 - 18} textAnchor="middle" fontSize="10" fontWeight="600" fill="rgba(255,255,255,0.75)">{zone}</text>
             <text x={cx} y={fy + fh / 2 + 16} textAnchor="middle" fontSize="36" fontWeight="800" fill={labelColor(zone)}>{count}</text>
             <text x={cx} y={fy + fh / 2 + 34} textAnchor="middle" fontSize="10" fill="rgba(255,255,255,0.6)">
-              {mode === "incorrect" ? "incorrect" : "missed"}
+              {zoneSub(zone)}
             </text>
           </g>
         );
