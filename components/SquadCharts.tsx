@@ -48,7 +48,6 @@ function Legend() {
 
 export default function SquadCharts({ refereeData, callBreakdown }: Props) {
   const maxRef = Math.max(...refereeData.map((r) => r.total), 1);
-  const maxCall = Math.max(...callBreakdown.map((c) => c.total), 1);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
@@ -97,28 +96,31 @@ export default function SquadCharts({ refereeData, callBreakdown }: Props) {
         <Legend />
       </div>
 
-      {/* Call-type breakdown — full width */}
+      {/* Call-type breakdown — ranked list, worst accuracy first */}
       <div className="bg-white rounded-xl border border-[#e2e8e5] p-6 lg:col-span-2">
-        <h3 className="text-sm font-semibold text-[#002e23] mb-4">Decisions by Call Type</h3>
-        <div className="overflow-x-auto">
-          <div className="flex items-end gap-3 min-w-max pb-1" style={{ height: "160px" }}>
-            {callBreakdown.map((c) => {
+        <div className="flex items-baseline justify-between gap-3 flex-wrap mb-4">
+          <h3 className="text-sm font-semibold text-[#002e23]">Decisions by Call Type</h3>
+          <p className="text-xs text-[#6b7c75]">Ranked lowest accuracy first</p>
+        </div>
+        <div className="space-y-3">
+          {[...callBreakdown]
+            .sort((a, b) => a.correct / a.total - b.correct / b.total || b.total - a.total)
+            .map((c) => {
               const p = Math.round((c.correct / c.total) * 100);
-              const cH = (c.correct / maxCall) * 112;
-              const iH = (c.incorrect / maxCall) * 112;
               return (
-                <div key={c.call} className="flex flex-col items-center gap-1" style={{ minWidth: "60px" }}>
-                  <span className="text-xs font-bold" style={{ color: pctColor(p) }}>{p}%</span>
-                  <div className="flex items-end gap-0.5" style={{ height: "112px" }}>
-                    <div className="w-5 rounded-t" style={{ height: `${cH}px`, backgroundColor: GREEN }} title={`${c.correct} correct`} />
-                    <div className="w-5 rounded-t" style={{ height: `${iH}px`, backgroundColor: RED }} title={`${c.incorrect} incorrect`} />
+                <div key={c.call} className="flex items-center gap-3">
+                  <div className="w-32 md:w-40 shrink-0 flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium text-[#002e23] leading-tight">{c.call}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#f0f4f2] text-[#6b7c75] font-medium shrink-0" title={`${c.total} calls`}>{c.total}</span>
                   </div>
-                  <p className="text-xs text-[#6b7c75] text-center leading-tight" style={{ maxWidth: "60px" }}>{c.call}</p>
-                  <p className="text-xs font-medium text-[#002e23]">{c.total}</p>
+                  <div className="flex-1 h-4 rounded bg-[#f0f4f2] overflow-hidden flex">
+                    <div className="h-full" style={{ width: `${(c.correct / c.total) * 100}%`, backgroundColor: GREEN }} title={`${c.correct} correct`} />
+                    <div className="h-full" style={{ width: `${(c.incorrect / c.total) * 100}%`, backgroundColor: RED }} title={`${c.incorrect} incorrect`} />
+                  </div>
+                  <span className="w-10 text-right text-xs font-bold shrink-0" style={{ color: pctColor(p) }}>{p}%</span>
                 </div>
               );
             })}
-          </div>
         </div>
         <Legend />
       </div>
