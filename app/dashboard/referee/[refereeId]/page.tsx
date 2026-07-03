@@ -114,6 +114,17 @@ export default async function RefereeDashboardPage({
     : { data: [] };
   const gameMap = Object.fromEntries((games ?? []).map(g => [g.id, g]));
 
+  // Consequence labels (e.g. "Forced Sub") keyed by decision_id
+  const decisionIds = [...new Set((rows ?? []).map(r => r.decision_id).filter(Boolean))];
+  const { data: consequenceRows } = decisionIds.length > 0
+    ? await supabase
+        .from("decision_labels")
+        .select("decision_id, text")
+        .eq("group_normalised", "CONSEQUENCE")
+        .in("decision_id", decisionIds)
+    : { data: [] };
+  const consequenceMap = Object.fromEntries((consequenceRows ?? []).map(c => [c.decision_id, c.text]));
+
   // ── Stats (from filtered rows) ────────────────────────────────────────────
   const total = rows?.length ?? 0;
   const correct = rows?.filter(r => r.accuracy === "Correct").length ?? 0;
@@ -328,6 +339,11 @@ export default async function RefereeDashboardPage({
                     <td className="px-4 md:px-6 py-3 text-[#002e23] text-xs">
                       {row.is_missed && <span className="text-orange-600 font-medium mr-1">MISSED</span>}
                       {row.call_text ?? <span className="text-[#6b7c75]">—</span>}
+                      {consequenceMap[row.decision_id] && (
+                        <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-purple-100 text-purple-800 whitespace-nowrap">
+                          {consequenceMap[row.decision_id]}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 md:px-6 py-3">
                       <span className={`text-xs font-semibold ${isCorrect ? "text-[#007239]" : "text-[#ef3b24]"}`}>{row.accuracy ?? "—"}</span>

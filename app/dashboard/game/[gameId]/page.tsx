@@ -37,6 +37,17 @@ export default async function GameDashboardPage({ params }: { params: Promise<{ 
     .from("referees")
     .select("id, full_name");
 
+  // Consequence labels (e.g. "Forced Sub") keyed by decision_id
+  const decisionIds = [...new Set((allRows ?? []).map((r) => r.decision_id).filter(Boolean))];
+  const { data: consequenceRows } = decisionIds.length > 0
+    ? await supabase
+        .from("decision_labels")
+        .select("decision_id, text")
+        .eq("group_normalised", "CONSEQUENCE")
+        .in("decision_id", decisionIds)
+    : { data: [] };
+  const consequenceMap = Object.fromEntries((consequenceRows ?? []).map((c) => [c.decision_id, c.text]));
+
   const refMap = Object.fromEntries((referees ?? []).map((r) => [r.id, r.full_name]));
 
   // Aggregate stats use all rows (whole-game view for both admin and referee)
@@ -259,6 +270,11 @@ export default async function GameDashboardPage({ params }: { params: Promise<{ 
                     <td className="px-4 md:px-6 py-3 text-[#002e23] text-xs">
                       {isMissed ? <span className="text-orange-600 font-medium">MISSED </span> : null}
                       {row.call_text ?? <span className="text-[#6b7c75]">—</span>}
+                      {consequenceMap[row.decision_id] && (
+                        <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-purple-100 text-purple-800 whitespace-nowrap">
+                          {consequenceMap[row.decision_id]}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 md:px-6 py-3">
                       <span className={`text-xs font-semibold ${isCorrect ? "text-[#007239]" : "text-[#ef3b24]"}`}>

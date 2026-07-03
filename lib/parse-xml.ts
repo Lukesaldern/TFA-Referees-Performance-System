@@ -33,6 +33,7 @@ const KNOWN_GROUPS: Record<string, string> = {
   "FIELD POSITION": "FIELD_POSITION",
   "FIELD_POSITION": "FIELD_POSITION",
   "ACCURACY":       "ACCURACY",
+  "CONSEQUENCE":    "CONSEQUENCE",
 };
 
 function normaliseGroup(raw: string): string | null {
