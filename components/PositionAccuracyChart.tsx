@@ -47,18 +47,23 @@ export default function PositionAccuracyChart({ data }: { data: PositionRow[] })
 
   return (
     <div>
-      <div className="mb-4">
-        <label className="block text-xs font-medium text-[#6b7c75] mb-1">Decision type</label>
-        <select
-          value={call}
-          onChange={(e) => setCall(e.target.value)}
-          className="border border-[#e2e8e5] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#007239] bg-white min-w-44"
-        >
-          <option value="">All Calls</option>
-          {callTypes.map((c) => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
+      <div className="mb-4 flex items-end gap-3 flex-wrap">
+        <div>
+          <label className="block text-xs font-medium text-[#6b7c75] mb-1">Decision type</label>
+          <select
+            value={call}
+            onChange={(e) => setCall(e.target.value)}
+            className="border border-[#e2e8e5] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#007239] bg-white min-w-44"
+          >
+            <option value="">All Calls</option>
+            {callTypes.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+        <p className="text-xs text-[#6b7c75] pb-2.5">
+          {rows.length} tagged decision{rows.length !== 1 ? "s" : ""}{call ? ` of type ${call}` : ""}
+        </p>
       </div>
 
       <div className="space-y-3">
@@ -75,11 +80,13 @@ export default function PositionAccuracyChart({ data }: { data: PositionRow[] })
                   <div className="h-full rounded" style={{ width: `${pct}%`, backgroundColor: pctColor(pct) }} />
                 )}
               </div>
-              <div className="w-24 shrink-0 text-right">
+              <div className="w-32 shrink-0 text-right">
                 {pct !== null ? (
                   <>
-                    <span className="text-xs font-bold" style={{ color: pctColor(pct) }}>{pct}%</span>
-                    <span className="text-[10px] text-[#6b7c75] ml-1">{correct}/{total}</span>
+                    <span className="text-sm font-bold" style={{ color: pctColor(pct) }}>{pct}%</span>
+                    <span className="text-xs text-[#6b7c75] ml-1.5">
+                      {correct}/{total} call{total !== 1 ? "s" : ""}
+                    </span>
                   </>
                 ) : (
                   <span className="text-xs text-[#6b7c75]">no calls</span>
