@@ -2,6 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import Link from "next/link";
 import AccuracyBar from "@/components/AccuracyBar";
 import StatCard from "@/components/StatCard";
+import PositionAccuracyChart from "@/components/PositionAccuracyChart";
 import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -130,6 +131,19 @@ export default async function RefereeDashboardPage({
     : { data: [] };
   const consequenceMap = Object.fromEntries((consequenceRows ?? []).map(c => [c.decision_id, c.text]));
 
+  // Referee position labels keyed by decision_id, for the position accuracy chart
+  const { data: positionRows } = decisionIds.length > 0
+    ? await supabase
+        .from("decision_labels")
+        .select("decision_id, text")
+        .eq("group_normalised", "REFEREE_POSITION")
+        .in("decision_id", decisionIds)
+    : { data: [] };
+  const positionMap = Object.fromEntries((positionRows ?? []).map(p => [p.decision_id, p.text]));
+  const positionData = (rows ?? [])
+    .filter(r => positionMap[r.decision_id])
+    .map(r => ({ call: r.call_text, position: positionMap[r.decision_id], correct: r.accuracy === "Correct" }));
+
   // ── Stats (from filtered rows) ────────────────────────────────────────────
   const total = rows?.length ?? 0;
   const correct = rows?.filter(r => r.accuracy === "Correct").length ?? 0;
@@ -237,6 +251,12 @@ export default async function RefereeDashboardPage({
         <div className="px-4 md:px-6 py-5">
           <FieldHeatmap zoneCounts={zoneCounts} zoneTotals={zoneTotals} maxCount={maxZoneCount} mode={hmMode} />
         </div>
+      </div>
+
+      {/* ── Accuracy by Referee Position ── */}
+      <div className="bg-white rounded-xl border border-[#e2e8e5] p-6 mb-6">
+        <h2 className="font-semibold text-[#002e23] mb-4">Accuracy by Referee Position</h2>
+        <PositionAccuracyChart data={positionData} />
       </div>
 
       {/* Accuracy breakdown */}

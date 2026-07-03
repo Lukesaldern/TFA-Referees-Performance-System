@@ -2,6 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import Link from "next/link";
 import AccuracyBar from "@/components/AccuracyBar";
 import SquadCharts from "@/components/SquadCharts";
+import PositionAccuracyChart from "@/components/PositionAccuracyChart";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export default async function SquadDashboardPage({
   // Fetch all decision rows
   let query = supabase
     .from("decision_accuracy")
-    .select("referee_id, accuracy, importance, game_id, event_id, call_group, call_text, field_position");
+    .select("decision_id, referee_id, accuracy, importance, game_id, event_id, call_group, call_text, field_position");
   if (eventId) query = query.eq("event_id", eventId);
   if (fieldFilter) query = query.eq("field_position", fieldFilter);
   if (severityFilter === "critical") query = query.eq("importance", "CRITICAL");
@@ -124,6 +125,20 @@ export default async function SquadDashboardPage({
       : { data: [] };
 
   const selectedEventName = events?.find((e) => e.id === eventId)?.name;
+
+  // Referee position labels keyed by decision_id, for the position accuracy chart
+  const posDecisionIds = [...new Set((rows ?? []).map((r) => r.decision_id).filter(Boolean))];
+  const { data: positionRows } = posDecisionIds.length > 0
+    ? await supabase
+        .from("decision_labels")
+        .select("decision_id, text")
+        .eq("group_normalised", "REFEREE_POSITION")
+        .in("decision_id", posDecisionIds)
+    : { data: [] };
+  const positionMap = Object.fromEntries((positionRows ?? []).map((p) => [p.decision_id, p.text]));
+  const positionData = (rows ?? [])
+    .filter((r) => positionMap[r.decision_id])
+    .map((r) => ({ call: r.call_text, position: positionMap[r.decision_id], correct: r.accuracy === "Correct" }));
 
   // Heatmap zone counts (no field filter — field position IS the visualisation)
   let hmQuery = supabase
@@ -321,6 +336,12 @@ export default async function SquadDashboardPage({
           eventParam={eventId}
         />
       )}
+
+      {/* ── Accuracy by Referee Position ── */}
+      <div className="bg-white rounded-xl border border-[#e2e8e5] p-6 mb-6">
+        <h2 className="font-semibold text-[#002e23] mb-4">Accuracy by Referee Position</h2>
+        <PositionAccuracyChart data={positionData} />
+      </div>
 
       {/* ── Squad Field Heat Map ── */}
       <div className="bg-white rounded-xl border border-[#e2e8e5] overflow-hidden mb-6">
