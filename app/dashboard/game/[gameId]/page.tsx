@@ -19,6 +19,19 @@ export default async function GameDashboardPage({ params }: { params: Promise<{ 
   const isAdmin = currentReferee?.role === "admin";
   const myRefereeId = currentReferee?.id ?? null;
 
+  // Referees can only view games they were involved in
+  if (!isAdmin) {
+    const { data: myAssignment } = myRefereeId
+      ? await supabase
+          .from("referee_game_assignments")
+          .select("game_id")
+          .eq("game_id", gameId)
+          .eq("referee_id", myRefereeId)
+          .maybeSingle()
+      : { data: null };
+    if (!myAssignment) notFound();
+  }
+
   const { data: game } = await supabase
     .from("games")
     .select("id, name, game_date, hudl_link, events(name)")

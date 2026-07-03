@@ -13,9 +13,21 @@ export default async function GamesPage({
 
   const { data: { user } } = await supabase.auth.getUser();
   const { data: currentReferee } = user
-    ? await supabase.from("referees").select("role").eq("auth_user_id", user.id).maybeSingle()
+    ? await supabase.from("referees").select("id, role").eq("auth_user_id", user.id).maybeSingle()
     : { data: null };
   const isAdmin = currentReferee?.role === "admin";
+
+  // Referees only see games they were involved in
+  let myGameIds: string[] | null = null;
+  if (!isAdmin) {
+    const { data: myAssignments } = currentReferee?.id
+      ? await supabase
+          .from("referee_game_assignments")
+          .select("game_id")
+          .eq("referee_id", currentReferee.id)
+      : { data: [] };
+    myGameIds = [...new Set((myAssignments ?? []).map((a) => a.game_id))];
+  }
 
   const { data: events } = await supabase
     .from("events")
@@ -24,13 +36,17 @@ export default async function GamesPage({
 
   const selectedEvent = eventId ?? events?.[0]?.id ?? null;
 
-  const { data: games } = selectedEvent
-    ? await supabase
+  let gamesQuery = selectedEvent
+    ? supabase
         .from("games")
         .select("id, name, game_date, source_file")
         .eq("event_id", selectedEvent)
         .order("game_date", { ascending: true })
-    : { data: [] };
+    : null;
+  if (gamesQuery && myGameIds !== null) {
+    gamesQuery = myGameIds.length > 0 ? gamesQuery.in("id", myGameIds) : null;
+  }
+  const { data: games } = gamesQuery ? await gamesQuery : { data: [] };
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-8">
