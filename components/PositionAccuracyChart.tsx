@@ -38,9 +38,10 @@ export default function PositionAccuracyChart({ data }: { data: PositionRow[] })
   const callTypes = [...new Set(data.map((d) => d.call).filter(Boolean))].sort() as string[];
   const rows = call ? data.filter((d) => d.call === call) : data;
 
+  // Always show the three standard positions; append any extra ones found in data
   const positionsInData = [...new Set(data.map((d) => friendly(d.position)))];
   const positions = [
-    ...POSITION_ORDER.filter((p) => positionsInData.includes(p)),
+    ...POSITION_ORDER,
     ...positionsInData.filter((p) => !POSITION_ORDER.includes(p)),
   ];
 
