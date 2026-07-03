@@ -42,6 +42,18 @@ function normaliseGroup(raw: string): string | null {
   return KNOWN_GROUPS[raw.trim().toUpperCase()] ?? null;
 }
 
+// Sportscode labels whose buttons aren't linked to a group export with no
+// <group> element. Infer the group from well-known label texts so the data
+// still lands in the right place.
+const UNGROUPED_TEXT_GROUPS: Record<string, string> = {
+  "CONTROL REF":            "REFEREE_POSITION",
+  "SIDELINE CLOSE":         "REFEREE_POSITION",
+  "SIDELINE FAR":           "REFEREE_POSITION",
+  "REF_POSITION_CONTROL":        "REFEREE_POSITION",
+  "REF_POSITION_SIDELINE_CLOSE": "REFEREE_POSITION",
+  "REF_POSITION_SIDELINE_FAR":   "REFEREE_POSITION",
+};
+
 export function decodePossiblyUtf16(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   // Detect UTF-16 LE BOM (FF FE)
@@ -89,10 +101,15 @@ export function parseSportsCodeXml(buffer: ArrayBuffer): ParseResult {
       const text = String(lbl.text ?? "").trim();
       let normalised = normaliseGroup(rawGroup);
 
+      // Group-less label: try to infer the group from a well-known text value
+      if (!normalised && !rawGroup) {
+        normalised = UNGROUPED_TEXT_GROUPS[text.toUpperCase()] ?? null;
+      }
+
       if (!normalised) {
         // Unknown group — keep the label anyway with an auto-derived key so the
         // data is preserved in the database, and report it for admin awareness.
-        unknownGroups.push({ raw: rawGroup, instance_id: instanceId });
+        unknownGroups.push({ raw: rawGroup || `(no group: ${text})`, instance_id: instanceId });
         normalised = rawGroup.toUpperCase().replace(/\s+/g, "_") || "UNGROUPED";
       }
 
