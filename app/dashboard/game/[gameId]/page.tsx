@@ -57,10 +57,16 @@ export default async function GameDashboardPage({ params }: { params: Promise<{ 
         .eq("group_normalised", "REFEREE_POSITION")
         .in("decision_id", decisionIds)
     : { data: [] };
-  const positionMap = Object.fromEntries((positionRows ?? []).map((p) => [p.decision_id, p.text]));
-  const positionData = (allRows ?? [])
-    .filter((r) => positionMap[r.decision_id])
-    .map((r) => ({ call: r.call_text, position: positionMap[r.decision_id], correct: r.accuracy === "Correct" }));
+  // A decision can carry multiple positions — count it under each one
+  const positionsByDecision: Record<string, string[]> = {};
+  for (const p of positionRows ?? []) {
+    (positionsByDecision[p.decision_id] ??= []).push(p.text);
+  }
+  const positionData = (allRows ?? []).flatMap((r) =>
+    (positionsByDecision[r.decision_id] ?? []).map((position) => ({
+      call: r.call_text, position, correct: r.accuracy === "Correct",
+    }))
+  );
 
   const refMap = Object.fromEntries((referees ?? []).map((r) => [r.id, r.full_name]));
 

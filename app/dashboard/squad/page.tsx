@@ -135,10 +135,16 @@ export default async function SquadDashboardPage({
         .eq("group_normalised", "REFEREE_POSITION")
         .in("decision_id", posDecisionIds)
     : { data: [] };
-  const positionMap = Object.fromEntries((positionRows ?? []).map((p) => [p.decision_id, p.text]));
-  const positionData = (rows ?? [])
-    .filter((r) => positionMap[r.decision_id])
-    .map((r) => ({ call: r.call_text, position: positionMap[r.decision_id], correct: r.accuracy === "Correct" }));
+  // A decision can carry multiple positions — count it under each one
+  const positionsByDecision: Record<string, string[]> = {};
+  for (const p of positionRows ?? []) {
+    (positionsByDecision[p.decision_id] ??= []).push(p.text);
+  }
+  const positionData = (rows ?? []).flatMap((r) =>
+    (positionsByDecision[r.decision_id] ?? []).map((position) => ({
+      call: r.call_text, position, correct: r.accuracy === "Correct",
+    }))
+  );
 
   // Heatmap zone counts (no field filter — field position IS the visualisation)
   let hmQuery = supabase
