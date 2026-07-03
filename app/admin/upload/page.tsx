@@ -257,7 +257,10 @@ export default function UploadGamePage() {
                   <p className="font-medium text-green-800">{result.message}</p>
                   <p className="text-green-700 mt-0.5">{result.decisions_imported} decisions imported</p>
                   {result.unknown_groups.length > 0 && (
-                    <p className="text-amber-600 mt-1 text-xs">{result.unknown_groups.length} unrecognised label group(s) logged</p>
+                    <p className="text-amber-600 mt-1 text-xs">
+                      New label group(s) found and stored: {[...new Set(result.unknown_groups.map((g) => g.raw))].join(", ")}.
+                      They aren&apos;t shown on dashboards yet — data is saved for when they are.
+                    </p>
                   )}
                 </div>
 

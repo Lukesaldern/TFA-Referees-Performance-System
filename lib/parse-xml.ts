@@ -84,11 +84,13 @@ export function parseSportsCodeXml(buffer: ArrayBuffer): ParseResult {
     for (const lbl of rawLabels as Array<Record<string, string>>) {
       const rawGroup = String(lbl.group ?? "").trim();
       const text = String(lbl.text ?? "").trim();
-      const normalised = normaliseGroup(rawGroup);
+      let normalised = normaliseGroup(rawGroup);
 
       if (!normalised) {
+        // Unknown group — keep the label anyway with an auto-derived key so the
+        // data is preserved in the database, and report it for admin awareness.
         unknownGroups.push({ raw: rawGroup, instance_id: instanceId });
-        continue;
+        normalised = rawGroup.toUpperCase().replace(/\s+/g, "_") || "UNGROUPED";
       }
 
       labels.push({ group_normalised: normalised, group_raw: rawGroup, text });
