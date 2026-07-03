@@ -174,7 +174,17 @@ export default async function GameDashboardPage({ params }: { params: Promise<{ 
 
       {/* Game summary stats — whole game, visible to all */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
-        <StatCard label="Total Decisions" value={totalDecisions} />
+        {(() => {
+          const pct = totalDecisions > 0 ? Math.round((totalCorrect / totalDecisions) * 100) : null;
+          return (
+            <StatCard
+              label="Referee Team Accuracy"
+              value={pct !== null ? `${pct}%` : "—"}
+              sub={`${totalCorrect}/${totalDecisions} decisions`}
+              accent={pct === null ? "#6b7c75" : pct >= 85 ? "#007239" : pct >= 70 ? "#f97316" : "#ef3b24"}
+            />
+          );
+        })()}
         <StatCard label="Correct" value={totalCorrect} accent="#007239" />
         <StatCard label="Incorrect Calls" value={penaltyCount} accent="#ef3b24" />
         <StatCard label="Missed DMs" value={missedCount} accent="#f97316" />
