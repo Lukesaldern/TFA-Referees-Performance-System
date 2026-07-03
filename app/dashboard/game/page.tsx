@@ -17,16 +17,16 @@ export default async function GamesPage({
     : { data: null };
   const isAdmin = currentReferee?.role === "admin";
 
-  // Referees only see games they were involved in
+  // Referees only see games they were involved in (games with their decisions)
   let myGameIds: string[] | null = null;
   if (!isAdmin) {
-    const { data: myAssignments } = currentReferee?.id
+    const { data: myDecisions } = currentReferee?.id
       ? await supabase
-          .from("referee_game_assignments")
+          .from("decision_accuracy")
           .select("game_id")
           .eq("referee_id", currentReferee.id)
       : { data: [] };
-    myGameIds = [...new Set((myAssignments ?? []).map((a) => a.game_id))];
+    myGameIds = [...new Set((myDecisions ?? []).map((d) => d.game_id).filter(Boolean))];
   }
 
   const { data: events } = await supabase
